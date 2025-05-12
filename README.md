@@ -1,66 +1,41 @@
-## Foundry
+# 🔐 Encrypted Escrow Smart Contract
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+This project implements a **confidential escrow mechanism** on Ethereum using **Inco Network's Lightning SDK**, enabling secure and privacy-preserving transactions between a buyer and a seller.
 
-Foundry consists of:
+## ✨ Overview
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+In traditional escrow systems, transaction details and access logic are publicly visible on-chain. This encrypted escrow solution introduces **privacy by design** — fund access is controlled using **encrypted keys**, making it virtually impossible for unauthorized entities to extract funds or reverse engineer access logic.
 
-## Documentation
+## 🧩 How It Works
 
-https://book.getfoundry.sh/
+- A **buyer** initiates the transaction by calling the main escrow contract.
+- The escrow contract deploys a **dedicated vault contract** that holds the buyer's funds.
+- The buyer generates an **encrypted key** using `e.rand()` (Inco SDK) and provides it during deposit.
+- The vault locks the funds; the **seller** cannot access them without permission.
+- Once satisfied, the buyer shares access using `e.allow()` to grant the seller permission.
+- The seller uses the key handle to unlock and withdraw funds securely.
 
-## Usage
+## 📦 Contracts
 
-### Build
+- `ConfidentialEscrow.sol`: Manages vault deployment and buyer/seller flow.
+- `EncryptedVault.sol`: Securely holds the funds using Inco SDK encrypted primitives.
 
-```shell
-$ forge build
-```
+## 🛠️ Stack
 
-### Test
+- [Solidity](https://soliditylang.org/)
+- [Foundry](https://book.getfoundry.sh/) — for local development, testing, and deployment
+- [Inco Lightning SDK](https://docs.inco.network/lightning-sdk) — for encrypted variable handling and permissioning
 
-```shell
-$ forge test
-```
+## 🚀 Features
 
-### Format
+- 🔐 **On-chain confidentiality** using Inco's encrypted types like `euint256`
+- ✅ **Fine-grained permission control** via `e.allow()` and `e.isAllowed()`
+- 🧱 **Modular architecture** separating business logic from fund custody
+- 🛡️ **Security-first design**, reducing attack surface and information leakage
 
-```shell
-$ forge fmt
-```
+## 📁 Usage
 
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/your-username/encrypted-escrow.git
+   cd encrypted-escrow
