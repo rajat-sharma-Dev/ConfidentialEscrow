@@ -77,7 +77,7 @@ contract StakingPool is Ownable {
     VerdictorToken private immutable i_verdictorToken;
     IValidTokensRegistry private immutable i_validTokensRegistry;
     mapping(address => uint256) private tokenBalances;
-    uint256 private toalUsdValueInPool;
+    uint256 private usdCounter;
     uint256 private lastRebaseTimestamp;
     uint256 private constant REBASE_INTERVAL = 6 hours;
 
@@ -125,22 +125,6 @@ contract StakingPool is Ownable {
         return totalValue;
     }
 
-    /**
-     * @notice Trigger a rebase if the rebase interval has passed
-     * @dev Updates the token supply to match the USD value in the pool
-     */
-    function checkAndRebase() public {
-        if (block.timestamp >= lastRebaseTimestamp + REBASE_INTERVAL) {
-            // Calculate the target supply based on total USD value
-            uint256 totalUsdValue = calculateTotalUsdValue();
-
-            // Set target supply equal to USD value (1 VDT = $1)
-            i_verdictorToken.rebase(totalUsdValue);
-
-            lastRebaseTimestamp = block.timestamp;
-        }
-    }
-
     function stake(uint256 amount, address token) external ValidToken(token) {
         if (amount == 0) {
             revert StakingPool__InvalidAmount();
@@ -154,16 +138,16 @@ contract StakingPool is Ownable {
 
         if (priceFeedAddress == address(1)) {
             // token is USDC
-            verdictorAmount = amount * 10e12; // Convert to 18 decimals
+            verdictorAmount = getUsdToVerdictorTokens(amount * 10e12); // Convert to 18 decimals
         } else {
             AggregatorV3Interface priceFeed = AggregatorV3Interface(priceFeedAddress);
             (, int256 price,,,) = priceFeed.latestRoundData();
-            verdictorAmount =
-                ((amount * 10 ** (18 - IERC20(token).decimals()) * (uint256(price) * 10 ** (18 - decimals))) / 1e18);
+            verdictorAmount = getUsdToVerdictorTokens(
+                ((amount * 10 ** (18 - IERC20(token).decimals()) * (uint256(price) * 10 ** (18 - decimals))) / 1e18)
+            );
         }
 
         i_verdictorToken.mint(msg.sender, verdictorAmount);
-        checkAndRebase();
 
         emit Staked(msg.sender, token, amount, verdictorAmount);
     }
@@ -177,9 +161,6 @@ contract StakingPool is Ownable {
         if (tokenBalances[token] < amount) {
             revert StakingPool__InvalidAmount();
         }
-        
-        // Check if rebase is needed BEFORE unstaking
-        checkAndRebase();
 
         // Calculate how many Verdictor tokens need to be burned based on USD value
         (address priceFeedAddress, uint8 decimals) = i_validTokensRegistry.getPriceFeedAddress(token);
@@ -187,12 +168,13 @@ contract StakingPool is Ownable {
 
         if (priceFeedAddress == address(1)) {
             // token is USDC
-            verdictorAmount = amount * 10 ** 12; // Convert to 18 decimals
+            verdictorAmount = getUsdToVerdictorTokens(amount * 10 ** 12); // Convert to 18 decimals
         } else {
             AggregatorV3Interface priceFeed = AggregatorV3Interface(priceFeedAddress);
             (, int256 price,,,) = priceFeed.latestRoundData();
-            verdictorAmount =
-                (amount * 10 ** (18 - IERC20(token).decimals()) * (uint256(price) * 10 ** (18 - decimals))) / 1e18;
+            verdictorAmount = getUsdToVerdictorTokens(
+                (amount * 10 ** (18 - IERC20(token).decimals()) * (uint256(price) * 10 ** (18 - decimals))) / 1e18
+            );
         }
 
         // Transfer Verdictor tokens from user to this contract and burn them
@@ -204,9 +186,6 @@ contract StakingPool is Ownable {
 
         // Transfer requested tokens to user
         IERC20(token).transfer(msg.sender, amount);
-
-        // Check if rebase is needed
-        checkAndRebase();
 
         emit Unstaked(msg.sender, token, amount, verdictorAmount);
     }
@@ -225,9 +204,29 @@ contract StakingPool is Ownable {
         // Update token balances
         tokenBalances[token] += amount;
 
-        // Check if rebase is needed
-        checkAndRebase();
-
         emit Sliced(recipient, token, amount);
+    }
+
+    /**
+     * 
+     * @param amount Amount of usd to conver to verdictor tokens in 18 decimals
+     * @return Amount of verdictor tokens in 18 decimals
+     * @dev This function will convert the given amount of USD to Verdictor tokens based on the current USD to Verdictor token exchange rate.
+     * @dev The exchange rate is determined by the total USD value of all tokens in the contract and the total supply of Verdictor tokens.
+     */
+    function getUsdToVerdictorTokens(uint256 amount) public view returns (uint256) {
+        if (amount == 0) {
+            revert StakingPool__InvalidAmount();
+        }
+
+        uint256 totalUsdValue = calculateTotalUsdValue();
+        uint256 totalVerdictorTokens = i_verdictorToken.totalSupply();
+
+        if (totalVerdictorTokens == 0) {
+            return amount; // If no Verdictor tokens exist, return the amount as is
+        }
+
+        // Calculate the amount of Verdictor tokens equivalent to the given USD amount
+        return (amount * totalVerdictorTokens) / totalUsdValue;
     }
 }
