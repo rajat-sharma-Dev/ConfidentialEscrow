@@ -79,8 +79,11 @@ contract StakingPool is Ownable {
     mapping(address => uint256) private tokenBalances;
     uint256 private usdCounter;
     uint256 private lastRebaseTimestamp;
-    uint256 private constant REBASE_INTERVAL = 6 hours;
 
+    /**
+     * 
+     * @param token address of the token that needs its validitity checked
+     */
     modifier ValidToken(address token) {
         if (!i_validTokensRegistry.isValidToken(token)) {
             revert StakingPool__InvalidToken();
@@ -88,6 +91,11 @@ contract StakingPool is Ownable {
         _;
     }
 
+    /**
+     * 
+     * @param validTokensRegistry address of the ValidTokensRegistry contract
+     * @dev The constructor initializes the StakingPool contract with the address of the ValidTokensRegistry contract.
+     */
     constructor(address validTokensRegistry) Ownable(msg.sender) {
         if (validTokensRegistry == address(0)) {
             revert StakingPool__InvalidAddress();
@@ -96,6 +104,11 @@ contract StakingPool is Ownable {
         i_validTokensRegistry = IValidTokensRegistry(validTokensRegistry);
     }
 
+    /**
+     * @notice Calculates the total USD value of all tokens in the contract.
+     * @return totalValue The total USD value of all tokens in the contract.
+     * @dev This function iterates through all valid tokens and calculates their USD value using Chainlink price feeds.
+     */
     function calculateTotalUsdValue() public view returns (uint256) {
         uint256 totalValue = 0;
         // You'll need to iterate through all valid tokens and calculate their USD value
@@ -125,6 +138,12 @@ contract StakingPool is Ownable {
         return totalValue;
     }
 
+    /**
+     * @notice Stakes a given amount of tokens in the pool.
+     * @param amount Amount of tokens to stake
+     * @param token Address of the token to stake
+     * @dev This function transfers the specified amount of tokens from the user to the contract and mints Verdictor tokens.
+     */
     function stake(uint256 amount, address token) external ValidToken(token) {
         if (amount == 0) {
             revert StakingPool__InvalidAmount();
@@ -152,6 +171,12 @@ contract StakingPool is Ownable {
         emit Staked(msg.sender, token, amount, verdictorAmount);
     }
 
+    /**
+     * @notice Unstakes a given amount of tokens from the pool.
+     * @param amount Amount of tokens to unstake
+     * @param token Address of the token to unstake
+     * @dev This function burns the specified amount of Verdictor tokens and transfers the corresponding amount of tokens to the user.
+     */
     function unstake(uint256 amount, address token) external ValidToken(token) {
         if (amount == 0) {
             revert StakingPool__InvalidAmount();
@@ -190,6 +215,13 @@ contract StakingPool is Ownable {
         emit Unstaked(msg.sender, token, amount, verdictorAmount);
     }
 
+    /**
+     * @notice Slices a given amount of tokens from the pool.
+     * @param amount Amount of tokens to slice
+     * @param token Token to be sliced
+     * @param recipient Address of the recipient
+     * @dev This function transfers the specified amount of tokens from the pool to the recipient.
+     */
     function slice(uint256 amount, address token, address recipient) external onlyOwner ValidToken(token) {
         if (amount == 0) {
             revert StakingPool__InvalidAmount();
@@ -199,7 +231,7 @@ contract StakingPool is Ownable {
         }
 
         // Transfer tokens from recipient to this contract
-        IERC20(token).transferFrom(recipient, address(this), amount);
+        IERC20(token).transferFrom(address(this), recipient, amount);
 
         // Update token balances
         tokenBalances[token] += amount;
