@@ -13,5 +13,7 @@ out/
 # Docs
 docs/
 
+./lib/light
+
 # Dotenv file
 .env

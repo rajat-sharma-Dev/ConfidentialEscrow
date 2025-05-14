@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import {Vault} from "./EncryptedVault.sol";
+import {EncryptedVault} from "./EncryptedVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {euint256, ebool, e} from "@inco/lightning/src/Lib.sol";
 
-contract MilestoneEscrow {
+contract ConfidentialEscrow {
     using e for *;
 
     // ========== STORAGE ==========
     IERC20 public immutable token;
-    Vault public immutable vault;
+    EncryptedVault public immutable vault;
     address public immutable buyer;
     address public immutable seller;
     uint256 public immutable totalAmount;
@@ -55,7 +55,7 @@ contract MilestoneEscrow {
         tokenAddress = _tokenAddress;
         contractStatus = Status.IN_PROGRESS;
 
-        Vault _vault = new Vault(_tokenAddress, _buyer, _seller);
+        EncryptedVault _vault = new EncryptedVault(_tokenAddress, _buyer, _seller);
         vault = _vault;
         token = IERC20(_tokenAddress);
     }
@@ -98,5 +98,9 @@ contract MilestoneEscrow {
         Status _status
     ) {
         return (buyer, seller, totalAmount, contractStatus);
+    }
+
+    function getVault() external view returns (address) {
+        return address(vault);
     }
 }

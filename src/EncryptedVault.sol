@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {euint256, ebool, e} from "@inco/lightning/src/Lib.sol";
 
-contract Vault {
+contract EncryptedVault {
     using e for *;
 
     // ========== STATE VARIABLES ==========
