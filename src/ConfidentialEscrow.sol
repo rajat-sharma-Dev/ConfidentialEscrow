@@ -12,11 +12,11 @@ contract ConfidentialEscrow {
 
     // ========== STORAGE ==========
     IERC20 private immutable token;
-    EncryptedVault private immutable vault;
+    EncryptedVault private vault;
     address private immutable buyer;
     address private immutable seller;
     address private immutable i_governor;
-    uint256 private immutable totalAmount;
+    uint256 private totalAmount;
     address private immutable tokenAddress;
     uint256 private immutable i_deadLine;
     uint256 private immutable i_initialtionTime;
@@ -26,6 +26,7 @@ contract ConfidentialEscrow {
 
     mapping(bytes32 => bool) private isCondition;
     mapping(bytes32 => Condition) private conditions;
+    bytes32[] private conditionKeys;
 
     struct Condition {
         string title;
@@ -57,10 +58,25 @@ contract ConfidentialEscrow {
     event DepositCompleted(address indexed buyer, uint256 amount);
     event AmountLocked(address indexed buyer, uint256 amount);
 
+    enum RLockStatus {
+        LOCKED,
+        UNLOCKED
+    }
+    RLockStatus private rLockStatus = RLockStatus.UNLOCKED;
+
     // ========== MODIFIERS ==========
     modifier onlyBuyer() {
         if (msg.sender != buyer) revert NotBuyer();
         _;
+    }
+
+    modifier rLock() {
+        if (rLockStatus == RLockStatus.LOCKED) {
+            revert NotAllowed();
+        }
+        rLockStatus = RLockStatus.LOCKED;
+        _;
+        rLockStatus = RLockStatus.UNLOCKED;
     }
 
     modifier onlySeller() {
@@ -78,7 +94,7 @@ contract ConfidentialEscrow {
     }
 
     modifier inProgress() {
-        if (contractStatus != Status.IN_PROGRESS) revert InvalidStatus();
+        if (contractStatus == Status.COMPLETE) revert InvalidStatus();
         _;
     }
 
@@ -89,7 +105,7 @@ contract ConfidentialEscrow {
         uint256 _amount,
         address _tokenAddress,
         address _governor,
-        Conditons[] memory _conditions,
+        Condition[] memory _conditions,
         uint256 _deadLine
     ) payable {
         buyer = _buyer;
@@ -105,6 +121,7 @@ contract ConfidentialEscrow {
             if (isCondition[conditionHash]) revert ConfidentionEscrow__TitleOfConditionsCanNotBeSame();
             isCondition[conditionHash] = true;
             conditions[conditionHash] = _conditions[i];
+            conditionKeys.push(conditionHash);
         }
 
         i_initialtionTime = block.timestamp;
@@ -114,7 +131,7 @@ contract ConfidentialEscrow {
 
     // ========== CORE FUNCTIONS ==========
 
-    function deposit() external onlyBuyer inProgress {
+    function deposit() external rLock onlyBuyer inProgress {
         if (deposited) revert ApprovalFailed();
 
         token.transferFrom(msg.sender, address(this), totalAmount);
@@ -123,12 +140,10 @@ contract ConfidentialEscrow {
         emit DepositCompleted(msg.sender, totalAmount);
     }
 
-    function advancePayment() private {}
-
-    function lock() external onlyBuyer inProgress {
+    function lock() private {
         if (token.balanceOf(msg.sender) < totalAmount) revert InsufficientBalance();
 
-        EncryptedVault _vault = new EncryptedVault(_tokenAddress, _buyer, _seller, _governor);
+        EncryptedVault _vault = new EncryptedVault(tokenAddress, buyer, seller, i_governor);
         vault = _vault;
 
         euint256 generatedKey = _getRandomKey();
@@ -142,16 +157,12 @@ contract ConfidentialEscrow {
         emit AmountLocked(msg.sender, totalAmount);
     }
 
-    function approveKey() external onlyBuyer inProgress {
+    function approveKey() external rLock onlyBuyer inProgress {
         key.allow(seller);
         if (!e.isAllowed(seller, key)) revert NotAllowed();
     }
 
-    // function releaseFunds() external onlySeller inProgress {
-    //     vault.releaseFunds();
-    // }
-
-    function approveCondition(bytes32 _conditionKey) external inProgress {
+    function approveCondition(bytes32 _conditionKey) external rLock inProgress {
         if (msg.sender == buyer) {
             conditions[_conditionKey].approvedByBuyer = true;
         } else if (msg.sender == seller) {
@@ -165,18 +176,18 @@ contract ConfidentialEscrow {
                 token.transfer(seller, conditions[_conditionKey].advancePayment);
                 totalAmount -= conditions[_conditionKey].advancePayment;
 
-                if (condition[_conditionKey].lock) {
+                if (conditions[_conditionKey].lock) {
                     lock();
                 }
             }
         }
     }
 
-    function refund() external onlySeller inProgress {
+    function approveRefund() external rLock onlySeller inProgress {
         refund = true;
     }
 
-    function ariseDispute() external inProgress {
+    function ariseDispute() external rLock inProgress {
         if (msg.sender != buyer || msg.sender != seller) revert NotAllowed();
         if (block.timestamp > i_deadLine + i_initialtionTime) {
             if(contractStatus == Status.IN_PROGRESS) {
@@ -189,12 +200,17 @@ contract ConfidentialEscrow {
         }
     }
 
-    function completeContract() external inProgress {
+    function completeContract() external rLock inProgress {
         if (contractStatus == Status.COMPLETE) revert InvalidStatus();
 
         if (msg.sender == seller) {
-            for (uint256 i = 0; i < conditions.length; i++) {
-                if (!conditions[i].approvedByBuyer || !conditions[i].approvedBySeller) revert ApprovalFailed();
+            for (uint256 i = 0; i < conditionKeys.length; i++) {
+                if (!conditions[conditionKeys[i]].approvedByBuyer || !conditions[conditionKeys[i]].approvedBySeller) revert ApprovalFailed();
+            }
+            if(contractStatus == Status.IN_PROGRESS) {
+                token.transfer(seller, totalAmount);
+            } else if (contractStatus == Status.FUNDS_LOCKED) {
+                vault.releaseFunds();
             }
 
             vault.releaseFunds();
@@ -203,7 +219,7 @@ contract ConfidentialEscrow {
             emit ContractCompleted();
         } else if (msg.sender == buyer) {
             if (!refund) revert ApprovalFailed();
-            if (contractStatus == status.IN_PROGRESS) {
+            if (contractStatus == Status.IN_PROGRESS) {
                 token.transfer(buyer, totalAmount);
                 contractStatus = Status.COMPLETE;
                 emit ContractCompleted();
@@ -244,7 +260,7 @@ contract ConfidentialEscrow {
         return i_governor;
     }
 
-    function getConditionKey(string memory _title) external view returns (bytes32) {
+    function getConditionKey(string memory _title) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(_title));
     }
 

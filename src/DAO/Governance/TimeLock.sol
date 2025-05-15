@@ -3,6 +3,9 @@
 pragma solidity ^0.8.20;
 
 import {TimelockController} from "../../../lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
+import {StakingPool} from "../Pool/StakingPool.sol";
+import {ValidTokensRegistry} from "../Pool/ValidTokensRegistry.sol";
+import {Factory} from "../../Factory.sol";
 
 /**
  * @title TimeLock
@@ -64,9 +67,30 @@ import {TimelockController} from "../../../lib/openzeppelin-contracts/contracts/
  */
 
 contract TimeLock is TimelockController {
+    address private immutable i_stakingPool;
+    address private immutable i_validTokensRegistry;
+    address private immutable i_factory;
+
+
     constructor(
         uint256 minDelay,
         address[] memory proposers,
         address[] memory executors
-    ) TimelockController(minDelay, proposers, executors, msg.sender) {}
+    ) TimelockController(minDelay, proposers, executors, msg.sender) {
+        i_validTokensRegistry = address(new ValidTokensRegistry());
+        i_stakingPool = address(new StakingPool(i_validTokensRegistry));
+        i_factory = address(new Factory());
+    }
+
+    function getStakingPool() external view returns (address) {
+        return i_stakingPool;
+    }
+
+    function getValidTokensRegistry() external view returns (address) {
+        return i_validTokensRegistry;
+    }
+
+    function getFactory() external view returns (address) {
+        return i_factory;
+    }
 }

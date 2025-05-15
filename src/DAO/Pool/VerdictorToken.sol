@@ -79,7 +79,7 @@ contract VerdictorToken is Ownable, ERC20Votes {
     mapping(address => uint256) private _gonBalances;
     mapping(address => mapping(address => uint256)) private _allowedFragments;
 
-    constructor() ERC20("Verdictor Token", "VRCT") EIP712("Verdictor Token", "1") Ownable(msg.sender) {}
+    constructor() ERC20("Verdictor Token", "VDT") EIP712("Verdictor Token", "1") Ownable(msg.sender) {}
 
     /**
      * @notice Mints new tokens

@@ -79,6 +79,12 @@ contract DeployDAO is Script {
         timeLock = new TimeLock(helperConfig.MIN_DELAY(), new address[](0), new address[](0));
         vm.stopBroadcast();
         console.log("TimeLock deployer at address: ", address(timeLock));
+        console.log("Staking Pool deployed at address: ", timeLock.getStakingPool());
+        console.log("ValidTokens Registry deployed at address: ", timeLock.getValidTokensRegistry());
+        console.log("Factory deployed at address: ", timeLock.getFactory());
+        vm.label(address(timeLock.getStakingPool()), "StakingPool");
+        vm.label(address(timeLock.getValidTokensRegistry()), "ValidTokensRegistry");
+        vm.label(address(timeLock.getFactory()), "Factory");
         if (address(timeLock) == address(0)) revert DeployDAO__TimeLockDeploymentFailed();
         vm.label(address(timeLock), "TimeLock");
         return timeLock;
