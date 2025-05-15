@@ -78,4 +78,8 @@ interface IERC20 {
     function transferFrom(address from, address to, uint256 value) external returns (bool);
 
     function decimals() external view returns (uint8);
+
+    function mint(address to, uint256 amount) external;
+
+    function burn(uint256 amount) external;
 }

@@ -62,6 +62,7 @@ contract ConfidentialEscrow {
         LOCKED,
         UNLOCKED
     }
+
     RLockStatus private rLockStatus = RLockStatus.UNLOCKED;
 
     // ========== MODIFIERS ==========
@@ -190,7 +191,7 @@ contract ConfidentialEscrow {
     function ariseDispute() external rLock inProgress {
         if (msg.sender != buyer || msg.sender != seller) revert NotAllowed();
         if (block.timestamp > i_deadLine + i_initialtionTime) {
-            if(contractStatus == Status.IN_PROGRESS) {
+            if (contractStatus == Status.IN_PROGRESS) {
                 token.transfer(buyer, totalAmount);
                 contractStatus = Status.COMPLETE;
                 emit ContractCompleted();
@@ -205,9 +206,11 @@ contract ConfidentialEscrow {
 
         if (msg.sender == seller) {
             for (uint256 i = 0; i < conditionKeys.length; i++) {
-                if (!conditions[conditionKeys[i]].approvedByBuyer || !conditions[conditionKeys[i]].approvedBySeller) revert ApprovalFailed();
+                if (!conditions[conditionKeys[i]].approvedByBuyer || !conditions[conditionKeys[i]].approvedBySeller) {
+                    revert ApprovalFailed();
+                }
             }
-            if(contractStatus == Status.IN_PROGRESS) {
+            if (contractStatus == Status.IN_PROGRESS) {
                 token.transfer(seller, totalAmount);
             } else if (contractStatus == Status.FUNDS_LOCKED) {
                 vault.releaseFunds();

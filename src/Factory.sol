@@ -4,7 +4,6 @@ pragma solidity ^0.8.18;
 import {ConfidentialEscrow} from "./ConfidentialEscrow.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-
 contract Factory is Ownable {
     error NotBuyer();
 

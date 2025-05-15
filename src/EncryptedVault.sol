@@ -17,10 +17,12 @@ contract EncryptedVault {
     uint256 private lockedFunds;
     euint256 private key;
 
-    enum SafeStatus { LOCKED, OPEN }
-    SafeStatus private status;
-    
+    enum SafeStatus {
+        LOCKED,
+        OPEN
+    }
 
+    SafeStatus private status;
 
     // ========== CUSTOM ERRORS ==========
 
@@ -44,6 +46,7 @@ contract EncryptedVault {
         if (msg.sender != seller) revert NotSeller();
         _;
     }
+
     modifier onlyGovernor() {
         if (msg.sender != i_governor) revert NotSeller();
         _;
@@ -98,12 +101,12 @@ contract EncryptedVault {
     function getBuyer() external view returns (address) {
         return buyer;
     }
+
     function getSeller() external view returns (address) {
         return seller;
     }
+
     function getToken() external view returns (address) {
         return address(token);
     }
-
-
 }

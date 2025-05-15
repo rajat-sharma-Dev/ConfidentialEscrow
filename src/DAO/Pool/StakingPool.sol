@@ -74,14 +74,14 @@ contract StakingPool is Ownable {
     event Unstaked(address indexed user, address indexed token, uint256 amount, uint256 verdictorAmount);
     event Sliced(address indexed recipient, address indexed token, uint256 amount);
 
-    VerdictorToken private immutable i_verdictorToken;
+    IERC20 private immutable i_verdictorToken;
     IValidTokensRegistry private immutable i_validTokensRegistry;
     mapping(address => uint256) private tokenBalances;
     uint256 private usdCounter;
     uint256 private lastRebaseTimestamp;
 
     /**
-     * 
+     *
      * @param token address of the token that needs its validitity checked
      */
     modifier ValidToken(address token) {
@@ -92,15 +92,15 @@ contract StakingPool is Ownable {
     }
 
     /**
-     * 
+     *
      * @param validTokensRegistry address of the ValidTokensRegistry contract
      * @dev The constructor initializes the StakingPool contract with the address of the ValidTokensRegistry contract.
      */
-    constructor(address validTokensRegistry) Ownable(msg.sender) {
+    constructor(address validTokensRegistry, address verdictorToken) Ownable(msg.sender) {
         if (validTokensRegistry == address(0)) {
             revert StakingPool__InvalidAddress();
         }
-        i_verdictorToken = new VerdictorToken();
+        i_verdictorToken = IERC20(verdictorToken);
         i_validTokensRegistry = IValidTokensRegistry(validTokensRegistry);
     }
 
@@ -240,7 +240,7 @@ contract StakingPool is Ownable {
     }
 
     /**
-     * 
+     *
      * @param amount Amount of usd to conver to verdictor tokens in 18 decimals
      * @return Amount of verdictor tokens in 18 decimals
      * @dev This function will convert the given amount of USD to Verdictor tokens based on the current USD to Verdictor token exchange rate.

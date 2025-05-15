@@ -45,12 +45,11 @@ contract DeployDAO is Script {
         }
         delegate(verdictorToken, vm.addr(deployerKey));
 
-        timeLock = deployTimeLock();
+        timeLock = deployTimeLock(address(verdictorToken));
 
         governor = deployGovernor();
 
         setUpContracts();
-
 
         return (address(verdictorToken), address(timeLock), address(governor));
     }
@@ -74,9 +73,9 @@ contract DeployDAO is Script {
         console.log("Number of initial checkpoints: ", numCheckPoints);
     }
 
-    function deployTimeLock() internal returns (TimeLock) {
+    function deployTimeLock(address verdictorToken) internal returns (TimeLock) {
         vm.startBroadcast(deployerKey);
-        timeLock = new TimeLock(helperConfig.MIN_DELAY(), new address[](0), new address[](0));
+        timeLock = new TimeLock(helperConfig.MIN_DELAY(), new address[](0), new address[](0), verdictorToken);
         vm.stopBroadcast();
         console.log("TimeLock deployer at address: ", address(timeLock));
         console.log("Staking Pool deployed at address: ", timeLock.getStakingPool());
@@ -100,7 +99,7 @@ contract DeployDAO is Script {
             helperConfig.QUORUM_PERCENTAGE()
         );
         vm.stopBroadcast();
-        if(address(governor) == address(0)) revert DeployDAO__GovernorDeployementFailed();
+        if (address(governor) == address(0)) revert DeployDAO__GovernorDeployementFailed();
         console.log("Governor deployed at address: ", address(governor));
         vm.label(address(governor), "Governor");
         return governor;
@@ -119,6 +118,4 @@ contract DeployDAO is Script {
         vm.roll(block.number + 2000);
         vm.stopBroadcast();
     }
-
-
 }

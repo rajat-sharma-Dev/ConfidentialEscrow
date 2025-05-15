@@ -3,11 +3,15 @@
 pragma solidity ^0.8.27;
 
 import {Governor} from "../../../lib/openzeppelin-contracts/contracts/governance/Governor.sol";
-import {GovernorCountingSimple} from "../../../lib/openzeppelin-contracts/contracts/governance/extensions/GovernorCountingSimple.sol";
-import {GovernorSettings} from "../../../lib/openzeppelin-contracts/contracts/governance/extensions/GovernorSettings.sol";
-import {GovernorTimelockControl} from "../../../lib/openzeppelin-contracts/contracts/governance/extensions/GovernorTimelockControl.sol";
+import {GovernorCountingSimple} from
+    "../../../lib/openzeppelin-contracts/contracts/governance/extensions/GovernorCountingSimple.sol";
+import {GovernorSettings} from
+    "../../../lib/openzeppelin-contracts/contracts/governance/extensions/GovernorSettings.sol";
+import {GovernorTimelockControl} from
+    "../../../lib/openzeppelin-contracts/contracts/governance/extensions/GovernorTimelockControl.sol";
 import {GovernorVotes} from "../../../lib/openzeppelin-contracts/contracts/governance/extensions/GovernorVotes.sol";
-import {GovernorVotesQuorumFraction} from "../../../lib/openzeppelin-contracts/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
+import {GovernorVotesQuorumFraction} from
+    "../../../lib/openzeppelin-contracts/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
 import {IVotes} from "../../../lib/openzeppelin-contracts/contracts/governance/utils/IVotes.sol";
 import {TimelockController} from "../../../lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
 import {TimeLock} from "./TimeLock.sol";
@@ -17,60 +21,67 @@ import {TimeLock} from "./TimeLock.sol";
  * @author Yug Agarwal
  * @dev This contract implements a governance system for the DAO.
  * It allows token holders to propose and vote on changes to the protocol.
- *                                                                         
-                         .            .                                   .#                        
-                       +#####+---+###+#############+-                  -+###.                       
-                       +###+++####+##-+++++##+++##++####+-.         -+###+++                        
-                       +#########.-#+--+####++###- -########+---+++#####+++                         
-                       +#######+#+++--+####+-..-+-.###+++########+-++###++.                         
-                      +######.     +#-#####+-.-------+############+++####-                          
-                     +####++...     ########-++-        +##########++++++.                          
-                    -#######-+.    .########+++          -++######+++-                               
-                    #++########--+-+####++++-- . ..    .-#++--+##+####.                              
-                   -+++++++++#####---###---.----###+-+########..-+#++##-                            
-                   ++###+++++#####-..---.. .+##++++#++#++-+--.   .-++++#                             
-                  .###+.  .+#+-+###+ ..    +##+##+#++----...---.  .-+--+.                            
-                  ###+---------+####+   -####+-.......    ...--++.  .---.                           
-                 -#++++-----#######+-  .-+###+.... .....      .-+##-.  .                            
-                 ##+++###++######++-.   .--+---++---........  ...---.  .                            
-                -####+-+#++###++-.        .--.--...-----.......--..... .                            
-                +######+++###+--..---.....  ...---------------.. .. .  .                            
-               .-#########+#+++--++--------......----++--.--.  .--+---.                             
-                -+++########++--++++----------------------.--+++--+++--                             
-           .######-.-++++###+----------------------..---++--++-+++---..                             
-           -##########-------+-----------------------+-++-++----..----+----+#####++--..             
-           -#############+..  ..--..----------.....-+++++++++++++++++##################+.           
-           --+++++#########+-   . ....  ....... -+++++++++++++++++++############-.----+##-          
-           -----....-+#######+-             .. -+++++++++++++++++++++##+######+.       +++.         
-           --------.....---+#####+--......----.+++++++++++++++++++++##+-+++##+.        -++-         
-           -------...   .--++++++---.....-----.+++++++++++++++++++++++. -+++##-        .---         
-           #################+--.....-------.  .+++++++++++++++++++++-       -+-.       .---         
-           +#########++++-.. .......-+--..--++-++++++++++++++++++++-         .-... ....----         
-           -#####++---..   .--       -+++-.  ..+++++++++++++++++++--        .-+-......-+---         
-           +####+---...    -+#-   .  --++++-. .+++++++++++++++++++---        --        -+--         
-           ++++++++++--....-++.--++--.--+++++-.+++++++++++++++++++---. .......         ----         
-          .--++#########++-.--.+++++--++++###+-++++++++++++++++++++----   .-++-        ----         
-           .-+#############+-.++#+-+-++#######-++++++++++++++++++++----   -++++-      ..---         
-          .---+############+.+###++--++#####++-+++++++++++++++++++++-------++++-........-+-         
-           --+-+##########-+######+++++-++++++-++++++++++++++++++++++-----.----.......---+-         
-          .--+---#######..+#######+++++++--+++-+++++++++++++++++++++++-----------------+++-         
-          .++--..-+##-.-########+++++---++ .+-.+++++++++++++++++++++++++++++++++++---+++++-         
-          -+++. ..-..-+#########++-++--..--....+++++++++++++++++++++++++++++++++++++++++++-         
-          -++-......-+++############++++----- .+++++++++++++++++++++++++++++++++++++++++++-         
-          +##-.....---+#######+####+####+--++-.+++++++++++++++++++++++++++++++++++++++++++-         
-         .#+++-...-++######++-+-----..----++##-+++++++++++++++++++++++++++++++++++++++++++-         
-         .+++--------+##----+------+-..----+++-+++++++++++++++++++++++++++++++++++++++++++-         
-          ----.-----+++-+-...------++-----...--+++++++++++++++++++++++++++++++++++++++++++-         
-         .-..-.--.----..--.... ....++--.  ....-+++++++++++++++++++++++++++++++++++++++++++-         
-          -----------.---..--..   ..+.  . ... .+++++++++++++++++++++++++++++++++++++++++++-         
-        .+#+#+---####+-.    .....--...   .    .+++++++++++++++++++++++++++++++++++++++++++-         
-        -+++++#++++++++.    ..-...--.. ..     .+++++++++++++++++++++++++++++++++++++++++++-         
-        ++++++-------++--   . ....--.. . . .. .+++++++++++++++++++++++++-+----------...             
-        -++++--++++.------......-- ...  ..  . .---------------...                                   
-        -++-+####+++---..-.........                                                                  
-          .....                                                                                      
+ *
+ *                          .            .                                   .#                        
+ *                        +#####+---+###+#############+-                  -+###.                       
+ *                        +###+++####+##-+++++##+++##++####+-.         -+###+++                        
+ *                        +#########.-#+--+####++###- -########+---+++#####+++                         
+ *                        +#######+#+++--+####+-..-+-.###+++########+-++###++.                         
+ *                       +######.     +#-#####+-.-------+############+++####-                          
+ *                      +####++...     ########-++-        +##########++++++.                          
+ *                     -#######-+.    .########+++          -++######+++-                               
+ *                     #++########--+-+####++++-- . ..    .-#++--+##+####.                              
+ *                    -+++++++++#####---###---.----###+-+########..-+#++##-                            
+ *                    ++###+++++#####-..---.. .+##++++#++#++-+--.   .-++++#                             
+ *                   .###+.  .+#+-+###+ ..    +##+##+#++----...---.  .-+--+.                            
+ *                   ###+---------+####+   -####+-.......    ...--++.  .---.                           
+ *                  -#++++-----#######+-  .-+###+.... .....      .-+##-.  .                            
+ *                  ##+++###++######++-.   .--+---++---........  ...---.  .                            
+ *                 -####+-+#++###++-.        .--.--...-----.......--..... .                            
+ *                 +######+++###+--..---.....  ...---------------.. .. .  .                            
+ *                .-#########+#+++--++--------......----++--.--.  .--+---.                             
+ *                 -+++########++--++++----------------------.--+++--+++--                             
+ *            .######-.-++++###+----------------------..---++--++-+++---..                             
+ *            -##########-------+-----------------------+-++-++----..----+----+#####++--..             
+ *            -#############+..  ..--..----------.....-+++++++++++++++++##################+.           
+ *            --+++++#########+-   . ....  ....... -+++++++++++++++++++############-.----+##-          
+ *            -----....-+#######+-             .. -+++++++++++++++++++++##+######+.       +++.         
+ *            --------.....---+#####+--......----.+++++++++++++++++++++##+-+++##+.        -++-         
+ *            -------...   .--++++++---.....-----.+++++++++++++++++++++++. -+++##-        .---         
+ *            #################+--.....-------.  .+++++++++++++++++++++-       -+-.       .---         
+ *            +#########++++-.. .......-+--..--++-++++++++++++++++++++-         .-... ....----         
+ *            -#####++---..   .--       -+++-.  ..+++++++++++++++++++--        .-+-......-+---         
+ *            +####+---...    -+#-   .  --++++-. .+++++++++++++++++++---        --        -+--         
+ *            ++++++++++--....-++.--++--.--+++++-.+++++++++++++++++++---. .......         ----         
+ *           .--++#########++-.--.+++++--++++###+-++++++++++++++++++++----   .-++-        ----         
+ *            .-+#############+-.++#+-+-++#######-++++++++++++++++++++----   -++++-      ..---         
+ *           .---+############+.+###++--++#####++-+++++++++++++++++++++-------++++-........-+-         
+ *            --+-+##########-+######+++++-++++++-++++++++++++++++++++++-----.----.......---+-         
+ *           .--+---#######..+#######+++++++--+++-+++++++++++++++++++++++-----------------+++-         
+ *           .++--..-+##-.-########+++++---++ .+-.+++++++++++++++++++++++++++++++++++---+++++-         
+ *           -+++. ..-..-+#########++-++--..--....+++++++++++++++++++++++++++++++++++++++++++-         
+ *           -++-......-+++############++++----- .+++++++++++++++++++++++++++++++++++++++++++-         
+ *           +##-.....---+#######+####+####+--++-.+++++++++++++++++++++++++++++++++++++++++++-         
+ *          .#+++-...-++######++-+-----..----++##-+++++++++++++++++++++++++++++++++++++++++++-         
+ *          .+++--------+##----+------+-..----+++-+++++++++++++++++++++++++++++++++++++++++++-         
+ *           ----.-----+++-+-...------++-----...--+++++++++++++++++++++++++++++++++++++++++++-         
+ *          .-..-.--.----..--.... ....++--.  ....-+++++++++++++++++++++++++++++++++++++++++++-         
+ *           -----------.---..--..   ..+.  . ... .+++++++++++++++++++++++++++++++++++++++++++-         
+ *         .+#+#+---####+-.    .....--...   .    .+++++++++++++++++++++++++++++++++++++++++++-         
+ *         -+++++#++++++++.    ..-...--.. ..     .+++++++++++++++++++++++++++++++++++++++++++-         
+ *         ++++++-------++--   . ....--.. . . .. .+++++++++++++++++++++++++-+----------...             
+ *         -++++--++++.------......-- ...  ..  . .---------------...                                   
+ *         -++-+####+++---..-.........                                                                  
+ *           .....
  */
-contract GovernorContract is Governor, GovernorSettings, GovernorCountingSimple, GovernorVotes, GovernorVotesQuorumFraction, GovernorTimelockControl {
+contract GovernorContract is
+    Governor,
+    GovernorSettings,
+    GovernorCountingSimple,
+    GovernorVotes,
+    GovernorVotesQuorumFraction,
+    GovernorTimelockControl
+{
     constructor(IVotes _token, TimeLock _timelock, uint32 _votinDelay, uint32 _votingPeriod, uint256 _quorumPercentage)
         Governor("GovernorContract")
         GovernorSettings(_votinDelay, _votingPeriod, 1e18)
@@ -99,44 +110,40 @@ contract GovernorContract is Governor, GovernorSettings, GovernorCountingSimple,
         return super.proposalNeedsQueuing(proposalId);
     }
 
-    function proposalThreshold()
-        public
-        view
-        override(Governor, GovernorSettings)
-        returns (uint256)
-    {
+    function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
         return super.proposalThreshold();
     }
 
-    function _queueOperations(uint256 proposalId, address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash)
-        internal
-        override(Governor, GovernorTimelockControl)
-        returns (uint48)
-    {
+    function _queueOperations(
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    ) internal override(Governor, GovernorTimelockControl) returns (uint48) {
         return super._queueOperations(proposalId, targets, values, calldatas, descriptionHash);
     }
 
-    function _executeOperations(uint256 proposalId, address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash)
-        internal
-        override(Governor, GovernorTimelockControl)
-    {
+    function _executeOperations(
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    ) internal override(Governor, GovernorTimelockControl) {
         super._executeOperations(proposalId, targets, values, calldatas, descriptionHash);
     }
 
-    function _cancel(address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash)
-        internal
-        override(Governor, GovernorTimelockControl)
-        returns (uint256)
-    {
+    function _cancel(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    ) internal override(Governor, GovernorTimelockControl) returns (uint256) {
         return super._cancel(targets, values, calldatas, descriptionHash);
     }
 
-    function _executor()
-        internal
-        view
-        override(Governor, GovernorTimelockControl)
-        returns (address)
-    {
+    function _executor() internal view override(Governor, GovernorTimelockControl) returns (address) {
         return super._executor();
     }
 }
