@@ -67,7 +67,7 @@ contract DeployDAO is Script {
     function delegate(VerdictorToken _verdictorToken, address _delegateAccount) internal {
         vm.startBroadcast(deployerKey);
         _verdictorToken.delegate(_delegateAccount);
-        vm.roll(block.number + 2000); // wait for 20 blocks
+        // vm.roll(block.number + 2000); // wait for 20 blocks
         uint32 numCheckPoints = _verdictorToken.numCheckpoints(_delegateAccount);
         vm.stopBroadcast();
         console.log("Delegated to: ", _delegateAccount);
@@ -112,9 +112,9 @@ contract DeployDAO is Script {
         bytes32 cancellerRole = timeLock.CANCELLER_ROLE();
         vm.startBroadcast(deployerKey);
         timeLock.grantRole(proposalRole, address(governor));
-        vm.roll(block.number + 2000);
+        // vm.roll(block.number + 2000);
         timeLock.grantRole(executorRole, address(0));
-        vm.roll(block.number + 2000);
+        // vm.roll(block.number + 2000);
         timeLock.revokeRole(cancellerRole, vm.addr(deployerKey));
         vm.roll(block.number + 2000);
         vm.stopBroadcast();

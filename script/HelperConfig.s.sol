@@ -12,7 +12,7 @@ contract HelperConfig is Script {
 
     uint256 public DEFAULT_ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
     NetworkConfig public activeNetworkConfig;
-    uint256 public constant MIN_DELAY = 3600; // 1 hour
+    uint256 public constant MIN_DELAY = 0; // 1 hour
     uint32 public constant VOTING_PERIOD = 129600; // 5 blocks
     uint32 public constant VOTING_DELAY = 129600; // 1 block
     uint256 public constant QUORUM_PERCENTAGE = 5; // 5%
