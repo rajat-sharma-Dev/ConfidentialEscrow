@@ -9,15 +9,18 @@ contract EncryptedVault {
 
     // ========== STATE VARIABLES ==========
 
-    address public immutable buyer;
-    address public immutable seller;
-    IERC20 public immutable token;
+    address private immutable buyer;
+    address private immutable seller;
+    IERC20 private immutable token;
+    address private immutable i_governor;
 
-    mapping(address => uint256) public lockedFunds;
+    uint256 private lockedFunds;
     euint256 private key;
 
     enum SafeStatus { LOCKED, OPEN }
-    SafeStatus public status;
+    SafeStatus private status;
+    
+
 
     // ========== CUSTOM ERRORS ==========
 
@@ -41,14 +44,19 @@ contract EncryptedVault {
         if (msg.sender != seller) revert NotSeller();
         _;
     }
+    modifier onlyGovernor() {
+        if (msg.sender != i_governor) revert NotSeller();
+        _;
+    }
 
     // ========== CONSTRUCTOR ==========
 
-    constructor(address _tokenAddress, address _buyer, address _seller) {
+    constructor(address _tokenAddress, address _buyer, address _seller, address _governor) {
         if (_seller == address(0)) revert InvalidSeller();
         buyer = _buyer;
         seller = _seller;
         token = IERC20(_tokenAddress);
+        i_governor = _governor;
     }
 
     // ========== MAIN FUNCTIONS ==========
@@ -59,12 +67,12 @@ contract EncryptedVault {
         if (!token.transferFrom(buyer, address(this), amount)) revert TransferFailed();
 
         key = _key;
-        lockedFunds[seller] += amount;
+        lockedFunds += amount;
         status = SafeStatus.LOCKED;
     }
 
     function releaseFunds() external {
-        if (lockedFunds[seller] == 0) revert NoFunds();
+        if (lockedFunds == 0) revert NoFunds();
         if (!e.isAllowed(msg.sender, key)) revert NotAllowed();
         status = SafeStatus.OPEN;
 
@@ -74,16 +82,28 @@ contract EncryptedVault {
     function _release() internal onlySeller {
         if (status != SafeStatus.OPEN) revert VaultLocked();
 
-        uint256 amount = lockedFunds[seller];
+        uint256 amount = lockedFunds;
         if (amount == 0) revert NoFunds();
 
-        lockedFunds[seller] = 0; // Prevent re-entrancy
+        lockedFunds = 0; // Prevent re-entrancy
         if (!token.transfer(seller, amount)) revert TransferFailed();
     }
 
     // ========== VIEW ==========
 
     function getLockedFunds() external view returns (uint256) {
-        return lockedFunds[seller];
+        return lockedFunds;
     }
+
+    function getBuyer() external view returns (address) {
+        return buyer;
+    }
+    function getSeller() external view returns (address) {
+        return seller;
+    }
+    function getToken() external view returns (address) {
+        return address(token);
+    }
+
+
 }

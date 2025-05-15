@@ -13,33 +13,33 @@ interface IVault {
 
 contract Factory {
 
-    address public immutable tokenAddress;
-    address public buyer;
-    address public seller;
-    uint256 public totalAmount;
-    EncryptedVault public vault;
-    ConfidentialEscrow public escrow;
-    address[] public escrowAddresses;
-    address[] public vaultAddresses;
-    bool public Deposited;
+    address private immutable tokenAddress;
+    address private buyer;
+    address private immutable i_governor;
+    address private seller;
+    uint256 private totalAmount;
+    EncryptedVault private vault;
+    ConfidentialEscrow private escrow;
+    address[] private escrowAddresses;
+    address[] private vaultAddresses;
+    bool private Deposited;
 
-    mapping(address => address) public vaults;
+    mapping(address => address) private vaults;
 
-    constructor (address _tokenAddress, address _buyer, address _seller, uint256 amount){
+    constructor (address _tokenAddress, address _buyer, address _seller, uint256 _amount, address _governor){
         tokenAddress = _tokenAddress;
         buyer = _buyer;
         seller = _seller;
-        totalAmount = amount;
-
+        totalAmount = _amount;
+        i_governor = _governor;
 
     }
 
     function createContract() external {
 
-        escrow = new ConfidentialEscrow(seller, buyer, totalAmount, tokenAddress);
+        escrow = new ConfidentialEscrow(seller, buyer, totalAmount, tokenAddress, i_governor);
         vault = EncryptedVault(escrow.getVault());
-        
-         
+
     }
 
     function deposit() external {
