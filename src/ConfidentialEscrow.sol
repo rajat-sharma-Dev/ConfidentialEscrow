@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "./interfaces/IERC20.sol";
 
 interface TimeLock {
     function owner() external view returns (address);
@@ -34,6 +34,7 @@ contract ConfidentialEscrow {
     uint256 private immutable i_initialtionTime;
     bool private deposited;
     bool private refund;
+    uint256 private s_proposalId;
 
     mapping(bytes32 => bool) private isCondition;
     mapping(bytes32 => Condition) private conditions;
@@ -213,56 +214,54 @@ contract ConfidentialEscrow {
     }
 
     function _ariseDispute() private {
-    TimeLock timeLock = TimeLock(i_governor);
-    address governorAddress = timeLock.owner();
-    GovernorContract governor = GovernorContract(governorAddress);
+        TimeLock timeLock = TimeLock(i_governor);
+        address governorAddress = timeLock.owner();
+        GovernorContract governor = GovernorContract(governorAddress);
 
-    // Create proposal description
-    string memory description = string(
-        abi.encodePacked(
-            "Dispute for contract between ",
-            addressToString(buyer),
-            " and ",
-            addressToString(seller),
-            " for amount ",
-            uintToString(totalAmount),
-            ". Vote FOR to give funds to buyer. Vote AGAINST to give funds to seller."
-        )
-    );
+        // Create proposal description
+        string memory description = string(
+            abi.encodePacked(
+                "Dispute for contract between ",
+                addressToString(buyer),
+                " and ",
+                addressToString(seller),
+                " for amount ",
+                uintToString(totalAmount),
+                ". Vote FOR to give funds to buyer. Vote AGAINST to give funds to seller."
+            )
+        );
 
-    // Approve the timelock to transfer tokens from this contract
-    token.approve(address(timeLock), totalAmount);
+        // Approve the timelock to transfer tokens from this contract
+        token.approve(address(timeLock), totalAmount);
 
-    // Prepare the calldata for resolving the dispute
-    bytes memory proposalCalldata = abi.encodeWithSignature(
-        "resolveDispute(address,address,uint256,bool)",
-        address(this),
-        buyer,
-        totalAmount,
-        true
-    );
+        // Prepare the calldata for resolving the dispute
+        bytes memory proposalCalldata = abi.encodeWithSignature(
+            "resolveDispute(address,address,uint256,bool)", address(this), buyer, totalAmount, true
+        );
 
-    // Create arrays for the proposal parameters
-    address[] memory targets = new address[](1);
-    uint256[] memory values = new uint256[](1);
-    bytes[] memory calldatas = new bytes[](1);
-    
-    targets[0] = address(timeLock);
-    values[0] = 0;
-    calldatas[0] = proposalCalldata;
-    
-    // Use the proposeDispute function that registers the escrow -> proposal mapping
-    uint256 proposalId = governor.proposeDispute(
-        targets, 
-        values, 
-        calldatas, 
-        description,
-        address(this)  // Pass the escrow contract address
-    );
-    
-    // Emit event about the dispute being raised
-    emit DisputeRaised(buyer, seller, totalAmount, address(governor));
-}
+        // Create arrays for the proposal parameters
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+
+        targets[0] = address(timeLock);
+        values[0] = 0;
+        calldatas[0] = proposalCalldata;
+
+        // Use the proposeDispute function that registers the escrow -> proposal mapping
+        uint256 proposalId = governor.proposeDispute(
+            targets,
+            values,
+            calldatas,
+            description,
+            address(this) // Pass the escrow contract address
+        );
+
+        s_proposalId = proposalId;
+
+        // Emit event about the dispute being raised
+        emit DisputeRaised(buyer, seller, totalAmount, address(governor));
+    }
 
     function completeContract() external rLock notCompleted {
         if (msg.sender == seller) {
@@ -281,8 +280,8 @@ contract ConfidentialEscrow {
                 token.transfer(buyer, totalAmount);
                 contractStatus = Status.COMPLETE;
                 emit ContractCompleted();
-            } else if(block.timestamp > i_deadLine + i_initialtionTime) {
-                if(contractStatus == Status.FUNDS_LOCKED) revert NotAllowed();
+            } else if (block.timestamp > i_deadLine + i_initialtionTime) {
+                if (contractStatus == Status.FUNDS_LOCKED) revert NotAllowed();
                 token.transfer(buyer, totalAmount);
                 contractStatus = Status.COMPLETE;
                 emit ContractCompleted();
@@ -333,6 +332,10 @@ contract ConfidentialEscrow {
     {
         Condition memory condition = conditions[_conditionKey];
         return (condition.approvedByBuyer, condition.approvedBySeller);
+    }
+
+    function getProposalId() external view returns (uint256) {
+        return s_proposalId;
     }
 
     // Helper function to convert address to string

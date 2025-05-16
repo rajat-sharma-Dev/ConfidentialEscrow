@@ -16,6 +16,8 @@ import {IVotes} from "../../../lib/openzeppelin-contracts/contracts/governance/u
 import {TimelockController} from "../../../lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
 import {TimeLock} from "./TimeLock.sol";
 import {GovernorVoteTracker} from "./GovernorVoteTracker.sol";
+import {ConfidentialEscrow} from "../../ConfidentialEscrow.sol";
+import {IERC20} from "../../interfaces/IERC20.sol";
 
 /**
  * @title GovernorContract
@@ -23,56 +25,56 @@ import {GovernorVoteTracker} from "./GovernorVoteTracker.sol";
  * @dev This contract implements a governance system for the DAO.
  * It allows token holders to propose and vote on changes to the protocol.
  *
- *                          .            .                                   .#                        
- *                        +#####+---+###+#############+-                  -+###.                       
- *                        +###+++####+##-+++++##+++##++####+-.         -+###+++                        
- *                        +#########.-#+--+####++###- -########+---+++#####+++                         
- *                        +#######+#+++--+####+-..-+-.###+++########+-++###++.                         
- *                       +######.     +#-#####+-.-------+############+++####-                          
- *                      +####++...     ########-++-        +##########++++++.                          
- *                     -#######-+.    .########+++          -++######+++-                               
- *                     #++########--+-+####++++-- . ..    .-#++--+##+####.                              
- *                    -+++++++++#####---###---.----###+-+########..-+#++##-                            
- *                    ++###+++++#####-..---.. .+##++++#++#++-+--.   .-++++#                             
- *                   .###+.  .+#+-+###+ ..    +##+##+#++----...---.  .-+--+.                            
- *                   ###+---------+####+   -####+-.......    ...--++.  .---.                           
- *                  -#++++-----#######+-  .-+###+.... .....      .-+##-.  .                            
- *                  ##+++###++######++-.   .--+---++---........  ...---.  .                            
- *                 -####+-+#++###++-.        .--.--...-----.......--..... .                            
- *                 +######+++###+--..---.....  ...---------------.. .. .  .                            
- *                .-#########+#+++--++--------......----++--.--.  .--+---.                             
- *                 -+++########++--++++----------------------.--+++--+++--                             
- *            .######-.-++++###+----------------------..---++--++-+++---..                             
- *            -##########-------+-----------------------+-++-++----..----+----+#####++--..             
- *            -#############+..  ..--..----------.....-+++++++++++++++++##################+.           
- *            --+++++#########+-   . ....  ....... -+++++++++++++++++++############-.----+##-          
- *            -----....-+#######+-             .. -+++++++++++++++++++++##+######+.       +++.         
- *            --------.....---+#####+--......----.+++++++++++++++++++++##+-+++##+.        -++-         
- *            -------...   .--++++++---.....-----.+++++++++++++++++++++++. -+++##-        .---         
- *            #################+--.....-------.  .+++++++++++++++++++++-       -+-.       .---         
- *            +#########++++-.. .......-+--..--++-++++++++++++++++++++-         .-... ....----         
- *            -#####++---..   .--       -+++-.  ..+++++++++++++++++++--        .-+-......-+---         
- *            +####+---...    -+#-   .  --++++-. .+++++++++++++++++++---        --        -+--         
- *            ++++++++++--....-++.--++--.--+++++-.+++++++++++++++++++---. .......         ----         
- *           .--++#########++-.--.+++++--++++###+-++++++++++++++++++++----   .-++-        ----         
- *            .-+#############+-.++#+-+-++#######-++++++++++++++++++++----   -++++-      ..---         
- *           .---+############+.+###++--++#####++-+++++++++++++++++++++-------++++-........-+-         
- *            --+-+##########-+######+++++-++++++-++++++++++++++++++++++-----.----.......---+-         
- *           .--+---#######..+#######+++++++--+++-+++++++++++++++++++++++-----------------+++-         
- *           .++--..-+##-.-########+++++---++ .+-.+++++++++++++++++++++++++++++++++++---+++++-         
- *           -+++. ..-..-+#########++-++--..--....+++++++++++++++++++++++++++++++++++++++++++-         
- *           -++-......-+++############++++----- .+++++++++++++++++++++++++++++++++++++++++++-         
- *           +##-.....---+#######+####+####+--++-.+++++++++++++++++++++++++++++++++++++++++++-         
- *          .#+++-...-++######++-+-----..----++##-+++++++++++++++++++++++++++++++++++++++++++-         
- *          .+++--------+##----+------+-..----+++-+++++++++++++++++++++++++++++++++++++++++++-         
- *           ----.-----+++-+-...------++-----...--+++++++++++++++++++++++++++++++++++++++++++-         
- *          .-..-.--.----..--.... ....++--.  ....-+++++++++++++++++++++++++++++++++++++++++++-         
- *           -----------.---..--..   ..+.  . ... .+++++++++++++++++++++++++++++++++++++++++++-         
- *         .+#+#+---####+-.    .....--...   .    .+++++++++++++++++++++++++++++++++++++++++++-         
- *         -+++++#++++++++.    ..-...--.. ..     .+++++++++++++++++++++++++++++++++++++++++++-         
- *         ++++++-------++--   . ....--.. . . .. .+++++++++++++++++++++++++-+----------...             
- *         -++++--++++.------......-- ...  ..  . .---------------...                                   
- *         -++-+####+++---..-.........                                                                  
+ *                          .            .                                   .#
+ *                        +#####+---+###+#############+-                  -+###.
+ *                        +###+++####+##-+++++##+++##++####+-.         -+###+++
+ *                        +#########.-#+--+####++###- -########+---+++#####+++
+ *                        +#######+#+++--+####+-..-+-.###+++########+-++###++.
+ *                       +######.     +#-#####+-.-------+############+++####-
+ *                      +####++...     ########-++-        +##########++++++.
+ *                     -#######-+.    .########+++          -++######+++-
+ *                     #++########--+-+####++++-- . ..    .-#++--+##+####.
+ *                    -+++++++++#####---###---.----###+-+########..-+#++##-
+ *                    ++###+++++#####-..---.. .+##++++#++#++-+--.   .-++++#
+ *                   .###+.  .+#+-+###+ ..    +##+##+#++----...---.  .-+--+.
+ *                   ###+---------+####+   -####+-.......    ...--++.  .---.
+ *                  -#++++-----#######+-  .-+###+.... .....      .-+##-.  .
+ *                  ##+++###++######++-.   .--+---++---........  ...---.  .
+ *                 -####+-+#++###++-.        .--.--...-----.......--..... .
+ *                 +######+++###+--..---.....  ...---------------.. .. .  .
+ *                .-#########+#+++--++--------......----++--.--.  .--+---.
+ *                 -+++########++--++++----------------------.--+++--+++--
+ *            .######-.-++++###+----------------------..---++--++-+++---..
+ *            -##########-------+-----------------------+-++-++----..----+----+#####++--..
+ *            -#############+..  ..--..----------.....-+++++++++++++++++##################+.
+ *            --+++++#########+-   . ....  ....... -+++++++++++++++++++############-.----+##-
+ *            -----....-+#######+-             .. -+++++++++++++++++++++##+######+.       +++.
+ *            --------.....---+#####+--......----.+++++++++++++++++++++##+-+++##+.        -++-
+ *            -------...   .--++++++---.....-----.+++++++++++++++++++++++. -+++##-        .---
+ *            #################+--.....-------.  .+++++++++++++++++++++-       -+-.       .---
+ *            +#########++++-.. .......-+--..--++-++++++++++++++++++++-         .-... ....----
+ *            -#####++---..   .--       -+++-.  ..+++++++++++++++++++--        .-+-......-+---
+ *            +####+---...    -+#-   .  --++++-. .+++++++++++++++++++---        --        -+--
+ *            ++++++++++--....-++.--++--.--+++++-.+++++++++++++++++++---. .......         ----
+ *           .--++#########++-.--.+++++--++++###+-++++++++++++++++++++----   .-++-        ----
+ *            .-+#############+-.++#+-+-++#######-++++++++++++++++++++----   -++++-      ..---
+ *           .---+############+.+###++--++#####++-+++++++++++++++++++++-------++++-........-+-
+ *            --+-+##########-+######+++++-++++++-++++++++++++++++++++++-----.----.......---+-
+ *           .--+---#######..+#######+++++++--+++-+++++++++++++++++++++++-----------------+++-
+ *           .++--..-+##-.-########+++++---++ .+-.+++++++++++++++++++++++++++++++++++---+++++-
+ *           -+++. ..-..-+#########++-++--..--....+++++++++++++++++++++++++++++++++++++++++++-
+ *           -++-......-+++############++++----- .+++++++++++++++++++++++++++++++++++++++++++-
+ *           +##-.....---+#######+####+####+--++-.+++++++++++++++++++++++++++++++++++++++++++-
+ *          .#+++-...-++######++-+-----..----++##-+++++++++++++++++++++++++++++++++++++++++++-
+ *          .+++--------+##----+------+-..----+++-+++++++++++++++++++++++++++++++++++++++++++-
+ *           ----.-----+++-+-...------++-----...--+++++++++++++++++++++++++++++++++++++++++++-
+ *          .-..-.--.----..--.... ....++--.  ....-+++++++++++++++++++++++++++++++++++++++++++-
+ *           -----------.---..--..   ..+.  . ... .+++++++++++++++++++++++++++++++++++++++++++-
+ *         .+#+#+---####+-.    .....--...   .    .+++++++++++++++++++++++++++++++++++++++++++-
+ *         -+++++#++++++++.    ..-...--.. ..     .+++++++++++++++++++++++++++++++++++++++++++-
+ *         ++++++-------++--   . ....--.. . . .. .+++++++++++++++++++++++++-+----------...
+ *         -++++--++++.------......-- ...  ..  . .---------------...
+ *         -++-+####+++---..-.........
  *           .....
  */
 contract GovernorContract is
@@ -112,11 +114,11 @@ contract GovernorContract is
     ) public virtual returns (uint256) {
         // Create the proposal
         uint256 proposalId = propose(targets, values, calldatas, description);
-        
+
         // Register the dispute in the timelock
         TimeLock timeLock = TimeLock(payable(timelock()));
         timeLock.registerDisputeProposal(escrowContract, proposalId);
-        
+
         return proposalId;
     }
 
@@ -176,6 +178,19 @@ contract GovernorContract is
     }
 
     /**
+     * @notice Override to resolve conflict between base contracts
+     */
+    function _castVote(uint256 proposalId, address account, uint8 support, string memory reason, bytes memory params)
+        internal
+        override(Governor, GovernorVoteTracker)
+        returns (uint256)
+    {
+        // Call both parent implementations
+        Governor._castVote(proposalId, account, support, reason, params);
+        return GovernorVoteTracker._castVote(proposalId, account, support, reason, params);
+    }
+
+    /**
      * @notice Executes the seller win case when a dispute proposal fails
      * @param proposalId The ID of the failed proposal
      * @dev This function can be called by anyone once a proposal is defeated
@@ -183,85 +198,102 @@ contract GovernorContract is
     function executeFailedDisputeProposal(uint256 proposalId) external {
         // Check proposal is in defeated state
         require(state(proposalId) == ProposalState.Defeated, "Governor: proposal not defeated");
-        
-        // Get the proposal targets, values and calldata
-        (
-            address[] memory targets,
-            uint256[] memory values,
-            bytes[] memory calldatas,
-            string memory description
-        ) = getProposalDetails(proposalId);
-        
-        // Verify this is a dispute proposal by checking function signature
-        bytes4 selector = bytes4(calldatas[0][0:4]);
-        require(selector == bytes4(keccak256("resolveDispute(address,address,uint256,bool)")), 
-            "Governor: not a dispute proposal");
-        
-        // Decode the original calldata to get parameters
-        (address escrowContract, address buyer, uint256 amount, bool _) = 
-            abi.decode(calldatas[0][4:], (address, address, uint256, bool));
-        
-        // Get seller address from escrow
-        address seller;
-        try ConfidentialEscrow(escrowContract).getSellerAddress() returns (address _seller) {
-            seller = _seller;
-        } catch {
-            // Alternative way if the function doesn't exist
-            (, seller, , ) = ConfidentialEscrow(escrowContract).getContractInfo();
+
+        // Get proposal details
+        ProposalDetails memory details = _proposalDetails[proposalId];
+
+        // Get the timelock controller
+        TimeLock timeLock = TimeLock(payable(timelock()));
+
+        // Extract the escrow contract address from the calldata
+        // The calldata format is: "resolveDispute(address,address,uint256,bool)"
+        // We need to extract the first parameter which is the escrow address
+        address escrowContract;
+        if (details.targets.length > 0 && details.calldatas.length > 0) {
+            // Skip function selector (4 bytes) and extract the escrow address (32 bytes)
+            bytes memory callData = details.calldatas[0];
+            require(callData.length >= 36, "Governor: invalid calldata");
+
+            // Extract the escrow contract address from calldata
+            assembly {
+                escrowContract := mload(add(add(callData, 0x20), 4))
+            }
         }
-        
-        // Create calldata for seller win case (flip the winner flag to false)
-        bytes memory sellerCalldata = abi.encodeWithSignature(
-            "resolveDispute(address,address,uint256,bool)",
-            escrowContract,
-            seller,    // recipient is now the seller
-            amount,
-            false      // false means seller gets the funds
+
+        require(escrowContract != address(0), "Governor: no escrow contract found");
+
+        // Execute the failed dispute resolution through timelock
+        timeLock.executeFailedDisputeImmediately(proposalId, escrowContract);
+
+        emit DisputeResolutionScheduled(
+            proposalId,
+            ConfidentialEscrow(escrowContract).getSellerAddress(), // Seller is the recipient
+            ConfidentialEscrow(escrowContract).getToken() == address(0)
+                ? address(escrowContract).balance
+                : IERC20(ConfidentialEscrow(escrowContract).getToken()).balanceOf(escrowContract),
+            keccak256(abi.encodePacked("failed_dispute", proposalId))
         );
-        
-        // Schedule execution through timelock with zero delay for immediate execution
-        TimeLock timeLock = TimeLock(payable(targets[0]));
-        
-        // Get and use the minimum delay
-        uint256 delay = timeLock.getMinDelay();
-        
-        // Schedule the operation
-        bytes32 operationId = timeLock.schedule(
-            targets[0],
-            values[0],
-            sellerCalldata,
-            bytes32(0),  // predecessor: none
-            bytes32(0),  // salt: use a unique value in production
-            delay
-        );
-        
-        // Emit event for tracking
-        emit DisputeResolutionScheduled(proposalId, seller, amount, operationId);
     }
 
     event DisputeResolutionScheduled(
-        uint256 indexed proposalId, 
-        address indexed recipient, 
-        uint256 amount, 
-        bytes32 indexed operationId
+        uint256 indexed proposalId, address indexed recipient, uint256 amount, bytes32 indexed operationId
     );
 
+    // Store proposal details separately
+    struct ProposalDetails {
+        address[] targets;
+        uint256[] values;
+        bytes[] calldatas;
+        string description;
+    }
+
+    // Mapping to store proposal details
+    mapping(uint256 => ProposalDetails) private _proposalDetails;
+
     /**
-     * @notice Get proposal details
-     * @param proposalId The ID of the proposal
+     * @notice Override propose to store details
      */
-    function getProposalDetails(uint256 proposalId) public view returns (
+    function propose(
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         string memory description
-    ) {
-        ProposalCore memory proposal = _proposals[proposalId];
-        return (
-            proposal.targets,
-            proposal.values,
-            proposal.calldatas,
-            proposal.description
-        );
+    ) public virtual override returns (uint256) {
+        uint256 proposalId = super.propose(targets, values, calldatas, description);
+
+        // Store the proposal details for later retrieval
+        _storeProposalDetails(proposalId, targets, values, calldatas, description);
+
+        return proposalId;
+    }
+
+    /**
+     * @dev Store proposal details
+     */
+    function _storeProposalDetails(
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description
+    ) internal {
+        // Create copies of array parameters
+        address[] memory targetsCopy = new address[](targets.length);
+        uint256[] memory valuesCopy = new uint256[](values.length);
+        bytes[] memory calldatasCopy = new bytes[](calldatas.length);
+
+        for (uint256 i = 0; i < targets.length; i++) {
+            targetsCopy[i] = targets[i];
+            valuesCopy[i] = values[i];
+            calldatasCopy[i] = calldatas[i];
+        }
+
+        // Store the details
+        _proposalDetails[proposalId] = ProposalDetails({
+            targets: targetsCopy,
+            values: valuesCopy,
+            calldatas: calldatasCopy,
+            description: description
+        });
     }
 }

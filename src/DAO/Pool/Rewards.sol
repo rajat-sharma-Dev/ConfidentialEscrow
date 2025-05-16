@@ -16,7 +16,7 @@ contract Rewards is Ownable {
     LockStatus private _lockStatus;
 
     modifier lock() {
-        if(_lockStatus == LockStatus.LOCKED) revert("Locked");
+        if (_lockStatus == LockStatus.LOCKED) revert("Locked");
         _lockStatus = LockStatus.LOCKED;
         _;
         _lockStatus = LockStatus.UNLOCKED;

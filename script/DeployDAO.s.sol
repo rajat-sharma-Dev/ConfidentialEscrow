@@ -73,9 +73,9 @@ contract DeployDAO is Script {
         console.log("Number of initial checkpoints: ", numCheckPoints);
     }
 
-    function deployTimeLock(address verdictorToken) internal returns (TimeLock) {
+    function deployTimeLock(address _verdictorToken) internal returns (TimeLock) {
         vm.startBroadcast(deployerKey);
-        timeLock = new TimeLock(helperConfig.MIN_DELAY(), new address[](0), new address[](0), verdictorToken);
+        timeLock = new TimeLock(helperConfig.MIN_DELAY(), new address[](0), new address[](0), _verdictorToken);
         vm.stopBroadcast();
         console.log("TimeLock deployer at address: ", address(timeLock));
         console.log("Staking Pool deployed at address: ", timeLock.getStakingPool());
@@ -115,6 +115,8 @@ contract DeployDAO is Script {
         timeLock.grantRole(executorRole, address(0)); // Granting executor role to everyone
         // vm.roll(block.number + 2000);
         timeLock.revokeRole(cancellerRole, vm.addr(deployerKey));
+        // Set the governor address in the TimeLock contract
+        timeLock.setGovernor(address(governor));
         vm.roll(block.number + 2000);
         vm.stopBroadcast();
     }
