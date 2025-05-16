@@ -15,7 +15,7 @@ contract HelperConfig is Script {
     uint256 public constant MIN_DELAY = 0; // 1 hour
     uint32 public constant VOTING_PERIOD = 129600; // 3 days
     uint32 public constant VOTING_DELAY = 129600; // 3 days
-    uint256 public constant QUORUM_PERCENTAGE = 5; // 5%
+    uint256 public constant QUORUM_PERCENTAGE = 0; // 0%
 
     constructor() {
         if (block.chainid == 31337) {

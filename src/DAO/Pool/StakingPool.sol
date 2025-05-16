@@ -96,7 +96,7 @@ contract StakingPool is Ownable {
      * @param validTokensRegistry address of the ValidTokensRegistry contract
      * @dev The constructor initializes the StakingPool contract with the address of the ValidTokensRegistry contract.
      */
-    constructor(address validTokensRegistry, address verdictorToken) Ownable(msg.sender) {
+    constructor(address validTokensRegistry, address verdictorToken, address _owner) Ownable(_owner) {
         if (validTokensRegistry == address(0)) {
             revert StakingPool__InvalidAddress();
         }

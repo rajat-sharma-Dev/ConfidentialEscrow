@@ -70,7 +70,7 @@ contract ValidTokensRegistry is Ownable {
     mapping(address => uint8) private priceFeedDecimals;
     address[] private validTokensArray;
 
-    constructor() Ownable(msg.sender) {
+    constructor(address _owner) Ownable(_owner) {
         validTokens[USDC] = true; // Add USDC as a valid token
         validTokensArray.push(USDC);
         priceFeedAddresses[USDC] = address(1); // Add USDC as a price feed address

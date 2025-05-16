@@ -1,18 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import {EncryptedVault} from "./EncryptedVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {euint256, ebool, e} from "@inco/lightning/src/Lib.sol";
+
+interface TimeLock {
+    function owner() external view returns (address);
+    function resolveDispute(address escrowContract, address recipient, uint256 amount, bool isBuyerWinner) external;
+}
+
+interface GovernorContract {
+    function proposeDispute(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description,
+        address escrowContract
+    ) external returns (uint256);
+}
 
 contract ConfidentialEscrow {
-    using e for *;
-
     error ConfidentionEscrow__TitleOfConditionsCanNotBeSame();
+    error ConfidentialEscrow__OnlyOneLockConditionAllowed();
+    error ConfidentialEscrow__NoAdvancePaymentAfterLock();
 
     // ========== STORAGE ==========
     IERC20 private immutable token;
-    EncryptedVault private vault;
     address private immutable buyer;
     address private immutable seller;
     address private immutable i_governor;
@@ -20,7 +32,6 @@ contract ConfidentialEscrow {
     address private immutable tokenAddress;
     uint256 private immutable i_deadLine;
     uint256 private immutable i_initialtionTime;
-    euint256 private key;
     bool private deposited;
     bool private refund;
 
@@ -57,6 +68,7 @@ contract ConfidentialEscrow {
     event ContractCompleted();
     event DepositCompleted(address indexed buyer, uint256 amount);
     event AmountLocked(address indexed buyer, uint256 amount);
+    event DisputeRaised(address indexed buyer, address indexed seller, uint256 amount, address governorContract);
 
     enum RLockStatus {
         LOCKED,
@@ -94,8 +106,13 @@ contract ConfidentialEscrow {
         _;
     }
 
-    modifier inProgress() {
+    modifier notCompleted() {
         if (contractStatus == Status.COMPLETE) revert InvalidStatus();
+        _;
+    }
+
+    modifier notLocked() {
+        if (contractStatus == Status.FUNDS_LOCKED) revert InvalidStatus();
         _;
     }
 
@@ -108,7 +125,7 @@ contract ConfidentialEscrow {
         address _governor,
         Condition[] memory _conditions,
         uint256 _deadLine
-    ) payable {
+    ) {
         buyer = _buyer;
         seller = _seller;
         totalAmount = _amount;
@@ -117,12 +134,20 @@ contract ConfidentialEscrow {
         i_governor = _governor; // address of the timeLock contract of the governor contract
         i_deadLine = _deadLine;
 
+        bool lockCalled;
         for (uint256 i = 0; i < _conditions.length; i++) {
             bytes32 conditionHash = keccak256(abi.encodePacked(_conditions[i].title));
             if (isCondition[conditionHash]) revert ConfidentionEscrow__TitleOfConditionsCanNotBeSame();
             isCondition[conditionHash] = true;
             conditions[conditionHash] = _conditions[i];
             conditionKeys.push(conditionHash);
+            if (lockCalled) {
+                if (_conditions[i].advancePayment > 0) revert ConfidentialEscrow__NoAdvancePaymentAfterLock();
+            }
+            if (_conditions[i].lock) {
+                if (lockCalled) revert ConfidentialEscrow__OnlyOneLockConditionAllowed();
+                lockCalled = true;
+            }
         }
 
         i_initialtionTime = block.timestamp;
@@ -132,7 +157,7 @@ contract ConfidentialEscrow {
 
     // ========== CORE FUNCTIONS ==========
 
-    function deposit() external rLock onlyBuyer inProgress {
+    function deposit() external rLock onlyBuyer notCompleted {
         if (deposited) revert ApprovalFailed();
 
         token.transferFrom(msg.sender, address(this), totalAmount);
@@ -141,29 +166,13 @@ contract ConfidentialEscrow {
         emit DepositCompleted(msg.sender, totalAmount);
     }
 
-    function lock() private {
-        if (token.balanceOf(msg.sender) < totalAmount) revert InsufficientBalance();
-
-        EncryptedVault _vault = new EncryptedVault(tokenAddress, buyer, seller, i_governor);
-        vault = _vault;
-
-        euint256 generatedKey = _getRandomKey();
-        key = generatedKey;
-
-        if (!token.approve(address(vault), totalAmount)) revert ApprovalFailed();
-
-        generatedKey.allow(address(vault));
-        vault.deposit(totalAmount, generatedKey);
+    function lock() private rLock notCompleted notLocked {
+        contractStatus = Status.FUNDS_LOCKED;
 
         emit AmountLocked(msg.sender, totalAmount);
     }
 
-    function approveKey() external rLock onlyBuyer inProgress {
-        key.allow(seller);
-        if (!e.isAllowed(seller, key)) revert NotAllowed();
-    }
-
-    function approveCondition(bytes32 _conditionKey) external rLock inProgress {
+    function approveCondition(bytes32 _conditionKey) external rLock notCompleted {
         if (msg.sender == buyer) {
             conditions[_conditionKey].approvedByBuyer = true;
         } else if (msg.sender == seller) {
@@ -176,20 +185,20 @@ contract ConfidentialEscrow {
             if (conditions[_conditionKey].advancePayment > 0) {
                 token.transfer(seller, conditions[_conditionKey].advancePayment);
                 totalAmount -= conditions[_conditionKey].advancePayment;
-
-                if (conditions[_conditionKey].lock) {
-                    lock();
-                }
+            }
+            if (conditions[_conditionKey].lock) {
+                lock();
             }
         }
     }
 
-    function approveRefund() external rLock onlySeller inProgress {
+    function approveRefund() external rLock onlySeller notCompleted {
         refund = true;
     }
 
-    function ariseDispute() external rLock inProgress {
-        if (msg.sender != buyer || msg.sender != seller) revert NotAllowed();
+    function ariseDispute() external rLock notCompleted {
+        if (msg.sender != buyer && msg.sender != seller) revert NotAllowed();
+
         if (block.timestamp > i_deadLine + i_initialtionTime) {
             if (contractStatus == Status.IN_PROGRESS) {
                 token.transfer(buyer, totalAmount);
@@ -197,62 +206,108 @@ contract ConfidentialEscrow {
                 emit ContractCompleted();
             } else {
                 // propose a vote to the governor contract
+                _ariseDispute();
+                contractStatus = Status.COMPLETE;
             }
         }
     }
 
-    function completeContract() external rLock inProgress {
-        if (contractStatus == Status.COMPLETE) revert InvalidStatus();
+    function _ariseDispute() private {
+    TimeLock timeLock = TimeLock(i_governor);
+    address governorAddress = timeLock.owner();
+    GovernorContract governor = GovernorContract(governorAddress);
 
+    // Create proposal description
+    string memory description = string(
+        abi.encodePacked(
+            "Dispute for contract between ",
+            addressToString(buyer),
+            " and ",
+            addressToString(seller),
+            " for amount ",
+            uintToString(totalAmount),
+            ". Vote FOR to give funds to buyer. Vote AGAINST to give funds to seller."
+        )
+    );
+
+    // Approve the timelock to transfer tokens from this contract
+    token.approve(address(timeLock), totalAmount);
+
+    // Prepare the calldata for resolving the dispute
+    bytes memory proposalCalldata = abi.encodeWithSignature(
+        "resolveDispute(address,address,uint256,bool)",
+        address(this),
+        buyer,
+        totalAmount,
+        true
+    );
+
+    // Create arrays for the proposal parameters
+    address[] memory targets = new address[](1);
+    uint256[] memory values = new uint256[](1);
+    bytes[] memory calldatas = new bytes[](1);
+    
+    targets[0] = address(timeLock);
+    values[0] = 0;
+    calldatas[0] = proposalCalldata;
+    
+    // Use the proposeDispute function that registers the escrow -> proposal mapping
+    uint256 proposalId = governor.proposeDispute(
+        targets, 
+        values, 
+        calldatas, 
+        description,
+        address(this)  // Pass the escrow contract address
+    );
+    
+    // Emit event about the dispute being raised
+    emit DisputeRaised(buyer, seller, totalAmount, address(governor));
+}
+
+    function completeContract() external rLock notCompleted {
         if (msg.sender == seller) {
             for (uint256 i = 0; i < conditionKeys.length; i++) {
                 if (!conditions[conditionKeys[i]].approvedByBuyer || !conditions[conditionKeys[i]].approvedBySeller) {
                     revert ApprovalFailed();
                 }
             }
-            if (contractStatus == Status.IN_PROGRESS) {
-                token.transfer(seller, totalAmount);
-            } else if (contractStatus == Status.FUNDS_LOCKED) {
-                vault.releaseFunds();
-            }
 
-            vault.releaseFunds();
+            token.transfer(seller, totalAmount);
 
             contractStatus = Status.COMPLETE;
             emit ContractCompleted();
         } else if (msg.sender == buyer) {
-            if (!refund) revert ApprovalFailed();
-            if (contractStatus == Status.IN_PROGRESS) {
+            if (refund) {
+                token.transfer(buyer, totalAmount);
+                contractStatus = Status.COMPLETE;
+                emit ContractCompleted();
+            } else if(block.timestamp > i_deadLine + i_initialtionTime) {
+                if(contractStatus == Status.FUNDS_LOCKED) revert NotAllowed();
                 token.transfer(buyer, totalAmount);
                 contractStatus = Status.COMPLETE;
                 emit ContractCompleted();
             } else {
-                key.allow(buyer);
-                vault.releaseFunds();
-                contractStatus = Status.COMPLETE;
-                emit ContractCompleted();
+                revert ApprovalFailed();
             }
+        } else {
+            revert NotAllowed();
         }
     }
 
     // ========== INTERNAL UTILITIES ==========
 
-    function _getRandomKey() internal returns (euint256) {
-        return e.rand();
-    }
+    // function _getRandomKey() internal returns (euint256) {
+    //     return e.rand();
+    // }
 
     // ========== VIEW ==========
 
     function getContractInfo()
         external
         view
-        returns (address _buyer, address _seller, uint256 _totalAmount, Status _status)
+        returns (address _buyer, address _seller, uint256 _totalAmount, Status _status, bytes32[] memory _conditionKeys)
     {
-        return (buyer, seller, totalAmount, contractStatus);
-    }
-
-    function getVault() external view returns (address) {
-        return address(vault);
+        return (buyer, seller, totalAmount, contractStatus, conditionKeys);
     }
 
     function getToken() external view returns (address) {
@@ -278,5 +333,56 @@ contract ConfidentialEscrow {
     {
         Condition memory condition = conditions[_conditionKey];
         return (condition.approvedByBuyer, condition.approvedBySeller);
+    }
+
+    // Helper function to convert address to string
+    function addressToString(address _addr) private pure returns (string memory) {
+        bytes32 value = bytes32(uint256(uint160(_addr)));
+        bytes memory alphabet = "0123456789abcdef";
+        bytes memory str = new bytes(42);
+        str[0] = "0";
+        str[1] = "x";
+        for (uint256 i = 0; i < 20; i++) {
+            str[2 + i * 2] = alphabet[uint8(value[i + 12] >> 4)];
+            str[3 + i * 2] = alphabet[uint8(value[i + 12] & 0x0f)];
+        }
+        return string(str);
+    }
+
+    // Helper function to convert uint to string
+    function uintToString(uint256 _i) private pure returns (string memory) {
+        if (_i == 0) {
+            return "0";
+        }
+        uint256 j = _i;
+        uint256 length;
+        while (j != 0) {
+            length++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(length);
+        uint256 k = length;
+        j = _i;
+        while (j != 0) {
+            bstr[--k] = bytes1(uint8(48 + j % 10));
+            j /= 10;
+        }
+        return string(bstr);
+    }
+
+    /**
+     * @notice Returns the seller address
+     * @return The address of the seller
+     */
+    function getSellerAddress() external view returns (address) {
+        return seller;
+    }
+
+    /**
+     * @notice Returns the buyer address
+     * @return The address of the buyer
+     */
+    function getBuyerAddress() external view returns (address) {
+        return buyer;
     }
 }

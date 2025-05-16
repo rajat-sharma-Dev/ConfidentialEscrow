@@ -14,7 +14,7 @@ contract Factory is Ownable {
 
     mapping(address => address) private vaults;
 
-    constructor() Ownable(msg.sender) {}
+    constructor(address _owner) Ownable(_owner) {}
 
     function createContract(
         address _seller,

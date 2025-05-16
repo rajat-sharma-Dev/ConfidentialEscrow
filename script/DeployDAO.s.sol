@@ -106,13 +106,13 @@ contract DeployDAO is Script {
     }
 
     function setUpContracts() internal {
-        bytes32 proposalRole = timeLock.PROPOSER_ROLE();
+        bytes32 proposerRole = timeLock.PROPOSER_ROLE();
         bytes32 executorRole = timeLock.EXECUTOR_ROLE();
         bytes32 cancellerRole = timeLock.CANCELLER_ROLE();
         vm.startBroadcast(deployerKey);
-        timeLock.grantRole(proposalRole, address(governor));
+        timeLock.grantRole(proposerRole, address(governor));
         // vm.roll(block.number + 2000);
-        timeLock.grantRole(executorRole, address(0));
+        timeLock.grantRole(executorRole, address(0)); // Granting executor role to everyone
         // vm.roll(block.number + 2000);
         timeLock.revokeRole(cancellerRole, vm.addr(deployerKey));
         vm.roll(block.number + 2000);
